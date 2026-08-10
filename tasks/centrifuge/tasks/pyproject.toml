@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+# Custom in-tree build backend: wraps setuptools and injects the auto-register
+# .pth shim into every wheel (regular + PEP 660 editable). See _build_backend.py.
+build-backend = "_build_backend"
+backend-path = ["."]
+
+[project]
+name = "rpl-centrifuge"
+version = "0.1.0"
+description = "Isaac Lab centrifuge task pack with OpenArm and GR1T2 teleoperation variants."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "BSD-3-Clause" }
+authors = [{ name = "RPL" }]
+keywords = ["isaaclab", "openarm", "gr1t2", "manipulation", "bimanual", "centrifuge", "imitation-learning"]
+classifiers = [
+  "License :: OSI Approved :: BSD License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+]
+
+# Runtime deps. ``isaaclab`` brings ``isaaclab_assets`` (which provides
+# OPENARM_BI_HIGH_PD_CFG) with it, so we don't list it separately.
+dependencies = [
+  "gymnasium",
+  "torch",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+# One-shot helper: run once after ``pip install`` to drop an auto-import .pth
+# file into site-packages so the gym IDs register without any script edits.
+rpl-centrifuge-install-autoreg = "rpl_centrifuge._install_autoreg:main"
+
+[project.urls]
+Homepage = "https://github.com/AD-SDL/openarm_module"
+
+##
+## setuptools configuration
+##
+
+[tool.setuptools]
+include-package-data = true
+# Note: the auto-import .pth file (src/rpl_centrifuge/rpl_centrifuge_autoregister.pth)
+# is installed directly into site-packages by ``setup.py`` (custom install/develop
+# cmdclass) — pyproject's ``data-files`` form can't reliably target the purelib
+# path across Python versions and PEP 660 editable installs.
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["rpl_centrifuge*"]
+
+[tool.setuptools.package-data]
+# Bundle USDs and the auto-register .pth shim alongside the Python modules.
+"rpl_centrifuge" = ["assets/*.usd", "assets/*.usdc", "assets/*.usda", "*.pth"]
