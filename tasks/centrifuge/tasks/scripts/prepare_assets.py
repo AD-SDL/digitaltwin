@@ -51,7 +51,12 @@ class _AssetSpec:
 
 # Authoritative list of bundled assets and how each should be prepared.
 ASSETS: tuple[_AssetSpec, ...] = (
-    _AssetSpec("centrifuge_tube_big.usd", "dynamic"),
+    # SDF (not convexHull): a convex hull of the tube (slim body + wider cap)
+    # bulges OUTSIDE the mesh into a frustum, so the collider caught the bucket
+    # well rim, penetrated, then got ejected -> bouncing on insertion. SDF is
+    # the only dynamic-valid approximation that follows the mesh exactly, so the
+    # collider matches the true slim body and inserts cleanly.
+    _AssetSpec("centrifuge_tube_big.usd", "dynamic_sdf"),
     # Bucket has wells, so convexHull would fill them and block the tube. SDF
     # is the only approximation valid for dynamic bodies that preserves
     # concave geometry, so we use the dedicated dynamic_sdf mode.
