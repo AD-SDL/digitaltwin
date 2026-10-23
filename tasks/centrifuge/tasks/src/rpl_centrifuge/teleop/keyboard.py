@@ -10,10 +10,14 @@ Key bindings (in the Kit viewport):
   * ``S`` — start / stop the current episode.
   * ``R`` — reset the world (also stops recording).
   * ``C`` — cancel the current episode (discard buffered frames).
+  * ``P`` — snapshot each scene camera's current frame to
+    ``/tmp/sim_cam_<name>.png`` (debug aid; no HDF5 side-effect).
 
 Start/stop/cancel are broadcast as carb app events consumed by
 :class:`~rpl_centrifuge.teleop.lerobot_recorder.LeRobotRecorder`. The event names
-must match that recorder's constants.
+must match that recorder's constants. ``P`` is drained in the sim loop (polling
+``snapshot_requested``) because the carb-event path doesn't carry the live obs
+tensors.
 """
 
 from __future__ import annotations
@@ -31,6 +35,7 @@ class KeyboardControl:
 
         self.reset_world = False
         self.recording = False
+        self.snapshot_requested = False
 
         self._window = omni.appwindow.get_default_app_window()
         self._input = carb.input.acquire_input_interface()
@@ -58,6 +63,10 @@ class KeyboardControl:
         if event.input.name == "C":
             if self.recording:
                 self.cancel_recording()
+            return True
+        if event.input.name == "P":
+            self.snapshot_requested = True
+            print("[INFO]: Snapshot requested (writing /tmp/sim_cam_<name>.png).")
             return True
         return False
 

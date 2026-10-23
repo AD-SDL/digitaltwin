@@ -35,13 +35,14 @@ This package self-registers its gym IDs on import:
     controller wrists with a trigger-driven power grasp.
   * ``Isaac-Centrifuge-SO101-IK-Abs-v0`` — single-arm SO101, absolute task-space
     IK. VR hand-tracking + controllers (reuses the upstream SO101 pose-IK action).
-  * ``Isaac-Centrifuge-SO101-Leader-v0`` — single-arm SO101 driven by a physical
-    SO101 leader arm over USB, via the native IsaacTeleop joint-space pipeline
-    (``so101_leader`` device); same scene/props/randomization as the IK-Abs task.
   * ``Isaac-Centrifuge-SO101-LeRobot-Leader-v0`` — single-arm SO101 driven by a
-    physical SO101 leader arm over USB via **LeRobot's** driver ("data transfer"),
-    with live cameras + a ``visual`` obs group; demos record straight to a LeRobot
-    dataset. Run with ``scripts/lerobot_leader_agent.py`` (not ``record_demos.py``).
+    physical SO101 leader arm over USB via **LeRobot's** driver, read **in-process**
+    (``scripts/so101_lerobot_agent.py``, lerobot imported directly in the IsaacLab
+    venv — only the leader surface is used, which doesn't drag ``transformers``
+    into the import chain). Live cameras (table / wrist / robot) + ``visual``
+    obs group; HDF5 output is converted to a LeRobot dataset later via
+    ``scripts/convert_to_lerobot.py``. See
+    ``docs/04b_collect_episodes_so101_leader.md``.
     ``Isaac-Centrifuge-SO101-LeRobot-Leader-DR-v0`` widens the reset randomization.
 
 A companion ``.pth`` file shipped with the wheel runs ``import
@@ -109,15 +110,6 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.gr1t2.waist_enabled_env_cfg:GR1T2CentrifugeWaistEnabledEnvCfg",
-    },
-    disable_env_checker=True,
-)
-
-gym.register(
-    id="Isaac-Centrifuge-SO101-Leader-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.so101.leader_teleop_env_cfg:CentrifugeSO101LeaderTeleopEnvCfg",
     },
     disable_env_checker=True,
 )
