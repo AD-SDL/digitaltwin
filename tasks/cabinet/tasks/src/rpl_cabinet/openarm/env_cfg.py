@@ -257,16 +257,21 @@ class ObservationsCfg:
     class SubtaskCfg(ObsGroup):
         """Boolean subtask signals for Mimic annotation (read via obs_buf['subtask_terms'])."""
 
-        left_grasp_handle = ObsTerm(
-            func=mdp.left_grasp_handle,
+        # Generic ipsilateral grasp -- fires for EITHER arm engaging its own
+        # side's handle. Keeps the obs group independent of a specific batch's
+        # handedness; the Mimic cfg still has to pick which arm's subtask
+        # sequence is active (see ik_abs_mimic_env_cfg.py).
+        grasp_handle = ObsTerm(
+            func=mdp.grasp_handle,
             params={
                 "left_ee_frame_cfg": SceneEntityCfg("left_ee_frame"),
+                "right_ee_frame_cfg": SceneEntityCfg("right_ee_frame"),
                 "cabinet_cfg": SceneEntityCfg("cabinet"),
             },
         )
 
         # NOT a Mimic subtask signal -- the Mimic wrapper's
-        # get_subtask_term_signals() whitelists ``left_grasp_handle`` only, so
+        # get_subtask_term_signals() whitelists ``grasp_handle`` only, so
         # this term is invisible to annotation and generation. It is here
         # because the ObservationManager is the one manager that runs every
         # step in record_demos, annotate_demos AND generate_dataset -- that's

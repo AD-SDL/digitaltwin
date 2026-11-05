@@ -54,6 +54,25 @@ def _eef_near_body(
     return torch.linalg.vector_norm(ee_pos_w - body_pos_w, dim=-1) < max_distance
 
 
+def _ipsilateral_grasp(
+    env: "ManagerBasedRLEnv",
+    ee_frame_cfg: SceneEntityCfg,
+    cabinet_cfg: SceneEntityCfg,
+    handle_body: str,
+    hinge_joint: str,
+    proximity_gate: float,
+    engage_angle_rad: float,
+) -> torch.Tensor:
+    """Shared gate: ``this`` EE near ``this`` side's handle AND ``this`` side's
+    door started to swing. Factored so left_/right_/grasp_handle stay in sync.
+    """
+    near = _eef_near_body(env, ee_frame_cfg, cabinet_cfg, handle_body, proximity_gate)
+    cab: Articulation = env.scene[cabinet_cfg.name]
+    hinge_idx, _ = cab.find_joints([hinge_joint])
+    swung = torch.abs(cab.data.joint_pos[:, hinge_idx[0]]) > engage_angle_rad
+    return near & swung
+
+
 def left_grasp_handle(
     env: "ManagerBasedRLEnv",
     left_ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("left_ee_frame"),
@@ -79,8 +98,50 @@ def left_grasp_handle(
     dataset doesn't have a canonical "grasp" moment either, so this is the
     subtask boundary rather than a measured one.
     """
-    near = _eef_near_body(env, left_ee_frame_cfg, cabinet_cfg, "handle_left", proximity_gate)
-    cab: Articulation = env.scene[cabinet_cfg.name]
-    door_idx, _ = cab.find_joints(["hinge_left"])
-    swung = torch.abs(cab.data.joint_pos[:, door_idx[0]]) > engage_angle_rad
-    return near & swung
+    return _ipsilateral_grasp(
+        env, left_ee_frame_cfg, cabinet_cfg, "handle_left", "hinge_left",
+        proximity_gate, engage_angle_rad,
+    )
+
+
+def right_grasp_handle(
+    env: "ManagerBasedRLEnv",
+    right_ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("right_ee_frame"),
+    cabinet_cfg: SceneEntityCfg = SceneEntityCfg("cabinet"),
+    proximity_gate: float = 0.12,
+    engage_angle_rad: float = 0.17,
+) -> torch.Tensor:
+    """Mirror of :func:`left_grasp_handle` for the right arm / right handle /
+    right hinge. Same gates, same thresholds, same calibration caveats.
+    """
+    return _ipsilateral_grasp(
+        env, right_ee_frame_cfg, cabinet_cfg, "handle_right", "hinge_right",
+        proximity_gate, engage_angle_rad,
+    )
+
+
+def grasp_handle(
+    env: "ManagerBasedRLEnv",
+    left_ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("left_ee_frame"),
+    right_ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("right_ee_frame"),
+    cabinet_cfg: SceneEntityCfg = SceneEntityCfg("cabinet"),
+    proximity_gate: float = 0.12,
+    engage_angle_rad: float = 0.17,
+) -> torch.Tensor:
+    """Either arm has engaged ITS OWN side's handle (ipsilateral grasp).
+
+    Fires if ``left_grasp_handle`` OR ``right_grasp_handle``. This is the
+    subtask-boundary signal exposed by :class:`ObservationsCfg.SubtaskCfg` so
+    that a single boundary serves both left-handed and right-handed demos --
+    needed because :mod:`isaaclab_mimic`'s annotator requires every subtask
+    signal in the obs group to fire at least once per demo (an unused LEFT or
+    RIGHT signal would skip annotation of every demo that uses the other arm).
+
+    Cross-reach cases (left arm pulling the right door, etc.) are deliberately
+    not covered: the real ``openarm_open_lab_door`` dataset is ipsilateral
+    (left arm / left door), the operator's natural reach in VR is ipsilateral,
+    and adding the cross cases would make the proximity gate ambiguous (which
+    handle is "the one being grasped" when both EEs are near one handle).
+    """
+    return left_grasp_handle(env, left_ee_frame_cfg, cabinet_cfg, proximity_gate, engage_angle_rad) | \
+           right_grasp_handle(env, right_ee_frame_cfg, cabinet_cfg, proximity_gate, engage_angle_rad)

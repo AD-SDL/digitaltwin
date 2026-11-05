@@ -162,5 +162,5 @@ class OpenDoorBimanualOpenArmIKAbsMimicEnv(ManagerBasedRLMimicEnv):
             env_ids = slice(None)
         subtask_terms = self.obs_buf["subtask_terms"]
         return {
-            "left_grasp_handle": subtask_terms["left_grasp_handle"][env_ids],
+            "grasp_handle": subtask_terms["grasp_handle"][env_ids],
         }

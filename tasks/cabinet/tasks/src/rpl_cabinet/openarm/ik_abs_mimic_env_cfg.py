@@ -9,8 +9,9 @@ Low-dimensional variant (no cameras). Wraps :class:`OpenDoorBimanualIkAbsEnvCfg`
 with :class:`MimicEnvCfg` and declares the per-arm subtask sequence. The base
 env already exposes the ``subtask_terms`` observation group
 (:mod:`rpl_cabinet.openarm.env_cfg`), which the Mimic env wrapper
-(:mod:`rpl_cabinet.openarm.mimic_env`) reads for the ``left_grasp_handle``
-signal.
+(:mod:`rpl_cabinet.openarm.mimic_env`) reads for the ipsilateral
+``grasp_handle`` signal (fires when either arm engages its own side's
+handle, so the obs group stays agnostic to which arm the demo batch used).
 
 For an IMAGE-bearing Mimic dataset, use
 :class:`~rpl_cabinet.openarm.visuomotor_mimic_env_cfg.OpenDoorBimanualIkAbsVisuomotorMimicEnvCfg`.
@@ -50,12 +51,21 @@ def _apply_opendoor_mimic_cfg(cfg) -> None:
     #   OPENDOOR_DATAGEN_SEED=2 ... --device cuda:1 --output_file shard1.hdf5
     cfg.datagen_config.seed = int(os.environ.get("OPENDOOR_DATAGEN_SEED") or 1)
 
-    # Left arm: 1) approach + engage the left-door handle (term = left_grasp_handle),
-    #           2) pull door open (term = None -> last subtask).
-    cfg.subtask_configs["left"] = [
+    # Subtask sequence of the ACTIVE arm:
+    #   1) approach + engage own-side handle (term = ``grasp_handle``, ipsilateral),
+    #   2) pull door open (term = None -> last subtask, bounded by success_term).
+    #
+    # ACTIVE ARM is the RIGHT arm, matching the recorded 13 demos (all right-arm
+    # pulls on the right door -- verified by inspecting gripper-channel ranges
+    # in openarm_vr_cabinet_dataset.hdf5: right gripper range 2.0 in every demo,
+    # left gripper range 0.0 everywhere). If a future batch is left-handed, swap
+    # the "left" and "right" dict bodies below and leave everything else alone --
+    # the ``grasp_handle`` subtask signal is ipsilateral and already covers both
+    # modalities, as does ``door_opened`` on the success-term side.
+    cfg.subtask_configs["right"] = [
         SubTaskConfig(
             object_ref="cabinet",
-            subtask_term_signal="left_grasp_handle",
+            subtask_term_signal="grasp_handle",
             subtask_term_offset_range=(0, 0),
             first_subtask_start_offset_range=(0, 0),
             selection_strategy="nearest_neighbor_object",
@@ -78,9 +88,9 @@ def _apply_opendoor_mimic_cfg(cfg) -> None:
         ),
     ]
 
-    # Right arm: single passive subtask so the recorder can query the right eef
-    # (the real demos park the right arm near home; keep that convention).
-    cfg.subtask_configs["right"] = [
+    # Left arm: single passive subtask so the recorder can query the left eef
+    # (the current demos park the left arm near home; keep that convention).
+    cfg.subtask_configs["left"] = [
         SubTaskConfig(
             object_ref="cabinet",
             subtask_term_signal=None,

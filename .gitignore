@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local training outputs (checkpoints, tee'd logs) -- never committed.
+# Ignore directory contents, but keep the .gitkeep stubs so the documented
+# layout survives a fresh clone. (Ignoring the directories themselves would
+# stop git from descending into them, which would also hide the stubs.)
+training/artifacts/train/*
+training/artifacts/logs/*
+!training/artifacts/train/.gitkeep
+!training/artifacts/logs/.gitkeep
