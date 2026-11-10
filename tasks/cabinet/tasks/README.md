@@ -17,7 +17,7 @@ Scope matches the real [`openarm_open_lab_door`](https://huggingface.co/datasets
 * **Visuomotor** — adds wrist/chest cameras + RGB image obs, run **headless** by `generate_dataset` to produce image datasets (never during live teleop).
 * **Mimic** — `Visuomotor` (or base) + `MimicEnvCfg` for `annotate_demos` / `generate_dataset`.
 
-> Robot base pose, cabinet standoff, and the three camera mount poses are **STARTING POINTS**. The `cabinet_sim/HANDOFF.md` evidence (biggest known gap: the chest/wrist mount poses were fitted by eye, not measured off the real D435i / Innomaker, so the sim view does not yet match `compare_real_vs_sim.jpg`) is unchanged by the port — close them in-lab before publishing a synthetic dataset.
+> Robot base pose, cabinet standoff, and the three camera mount poses are **STARTING POINTS**. The `cabinet_sim/HANDOFF.md` evidence (biggest known gap: the chest/wrist mount poses were fitted by eye, not measured off the real hardware, so the sim view does not yet match `compare_real_vs_sim.jpg`) is unchanged by the port — close them in-lab before publishing a synthetic dataset.
 
 ## Registered tasks
 

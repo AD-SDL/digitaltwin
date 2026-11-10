@@ -96,8 +96,12 @@ fi
 for bin in lerobot-train accelerate-launch jq curl; do
   if ! command -v "$bin" >/dev/null 2>&1; then
     echo "Missing required command on PATH: $bin" >&2
-    echo "Install LeRobot training extras first, e.g.:" >&2
-    echo "  INSTALL_EXTRAS=training,smolvla,pi,groot $LEROBOT_DIR/scripts/install_lerobot.sh" >&2
+    echo "  LEROBOT_DIR = $LEROBOT_DIR" >&2
+    echo "  looked for  : $LEROBOT_DIR/.venv/bin/$bin  (exists: $([[ -e "$LEROBOT_DIR/.venv/bin/$bin" ]] && echo yes || echo no))" >&2
+    echo "Fix one of:" >&2
+    echo "  - point LEROBOT_DIR at your lerobot checkout (its .venv/bin must hold $bin), or" >&2
+    echo "  - activate an env that already has $bin on PATH and set LEROBOT_DIR=/dev/null to skip auto-prepend, or" >&2
+    echo "  - install the training extras: INSTALL_EXTRAS=training,smolvla,pi,groot $LEROBOT_DIR/scripts/install_lerobot.sh" >&2
     exit 1
   fi
 done

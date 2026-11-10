@@ -10,3 +10,4 @@ This folder contains the end-to-end setup and training workflow.
 4. [Collect episodes](04_collect_episodes_meta_quest3.md)
 5. [Upload dataset to Hugging Face](05_upload_dataset_huggingface.md)
 6. [Train GR00T N1.7](06_train_gr00t_n1.7.md)
+7. [Evaluate a trained policy with sim rollouts](07_evaluate_policy_rollouts.md)

@@ -49,9 +49,12 @@ Concrete variants plug in the robot actions:
   * ``ik_abs_env_cfg`` / ``ik_rel_env_cfg`` -- VR teleop (dual-source retargeters).
   * ``visuomotor_env_cfg`` -- adds cameras + image obs for headless dataset gen.
 
-Quaternion conventions (they differ, keep them straight):
-  * ``InitialStateCfg.rot`` (assets) is **(x, y, z, w)**; identity = (0,0,0,1).
-  * ``CameraCfg.OffsetCfg.rot`` is **(w, x, y, z)**.
+Quaternion conventions: Isaac Lab 3.0 is **(x, y, z, w)** throughout, and
+identity is ``(0, 0, 0, 1)``. That holds for both ``InitialStateCfg.rot``
+(assets) and ``CameraCfg.OffsetCfg.rot`` (sensors) -- see
+``isaaclab.utils.math.matrix_from_quat``, which unpacks ``i, j, k, r``.
+Earlier revisions of this file claimed the camera offset was ``(w, x, y, z)``;
+it is not, and the chest camera was mis-aimed as a result.
 """
 
 from dataclasses import MISSING

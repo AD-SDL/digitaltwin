@@ -153,3 +153,23 @@ This script has been smoke-tested with:
 
 Other versions / GPUs likely work, but the pi05 memory recipe above was tuned
 for the 48 GB envelope.
+
+## Picking a checkpoint, then evaluating it
+
+`SAVE_FREQ=2000` on a 20-epoch pi05 run leaves ~127 checkpoints (~1.4 TB).
+The run has `eval_split: 0.0`, so there is **no held-out loss** to rank them
+by — only training loss, which is a weak proxy for a flow-matching policy.
+
+Rank by a smoothed training loss (±1000 steps, since single-step loss is
+noisy) rather than the instantaneous value, then confirm with rollouts:
+
+```bash
+grep -oE 'ot_train\.py:641 .* loss:[0-9.]+' artifacts/logs/<job>.log \
+  | awk '{match($0,/loss:[0-9.]+/); print NR*10, substr($0,RSTART+5,RLENGTH-5)}'
+```
+
+(`log_freq=10`, so line *N* is step *10N*; the `step:` field itself is
+abbreviated to `255K` past 1000 and cannot be parsed directly.)
+
+Training loss is a ranking hint, not a verdict. Measure the shortlist with
+[7) Evaluate a trained policy with sim rollouts](../docs/07_evaluate_policy_rollouts.md).

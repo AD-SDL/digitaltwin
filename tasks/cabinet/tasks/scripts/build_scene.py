@@ -65,7 +65,7 @@ ap.add_argument("--align-handle", default="",
                 help="x,y,z of the lever to land the gripper on. The pose is\n"
                      "fixed, so this is a rigid base shift, not IK.")
 ap.add_argument("--robot-cams", action="store_true",
-                help="add the real chest D435i + two wrist UVC cameras and\n"
+                help="add the real chest ZED Mini + two wrist UVC cameras and\n"
                      "render through them at their dataset resolutions")
 ap.add_argument("--flatten", action="store_true",
                 help="inline the OpenArm geometry into the scene file "

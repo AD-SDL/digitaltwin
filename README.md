@@ -6,7 +6,8 @@ Use this repository as a compact operations guide for:
 3. Connecting Meta Quest 3,
 4. Collecting teleoperation episodes,
 5. Uploading datasets to Hugging Face (`argonne-rpl`),
-6. Fine-tuning GR00T N1.7.
+6. Fine-tuning GR00T N1.7,
+7. Evaluating a trained policy with simulated rollouts.
 
 ## Documentation Index
 
@@ -17,6 +18,7 @@ Use this repository as a compact operations guide for:
 - [4) Collect episodes with Meta Quest 3](docs/04_collect_episodes_meta_quest3.md)
 - [5) Upload dataset to Hugging Face (argonne-rpl)](docs/05_upload_dataset_huggingface.md)
 - [6) Train GR00T N1.7 with uploaded dataset](docs/06_train_gr00t_n1.7.md)
+- [7) Evaluate a trained policy with sim rollouts](docs/07_evaluate_policy_rollouts.md)
 
 ## AI Usage Guide
 

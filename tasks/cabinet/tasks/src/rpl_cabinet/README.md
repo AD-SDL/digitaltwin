@@ -153,6 +153,27 @@ cannot be co-trained.
    The optics are solid; the mount geometry is the gap. Anyone with the
    physical robot can close it in minutes. This is **the biggest open item**
    before publishing synthetic training data.
+
+   The chest camera *aim and optics* are no longer part of this gap.
+
+   * **Aim.** It had been authored with a `(w, x, y, z)` quaternion while
+     Isaac Lab 3.0 reads `CameraCfg.OffsetCfg.rot` as `(x, y, z, w)`, so it
+     pointed up at the ceiling with the image rolled 90 deg. It now looks
+     along the body link's +X with a 10 deg downward pitch, centring both
+     handles.
+   * **Optics.** Matched to the OpenArm reference robot, whose body camera is
+     a **ZED Mini** (`openarm_description`: `product: zed`,
+     `camera_model: zedm` on a `zed_mount`), *not* a RealSense — 102 deg H
+     (`focal_length = 8.4845` at the 20.955 mm aperture) instead of the
+     D435i's 69.4 deg. At the task's 0.35 m standoff that widens the chest
+     view from 0.49 m to 0.87 m across, i.e. the whole cabinet front.
+     `openarm_isaac_lab` itself ships no camera config at all — its
+     `openarm_bimanual_sensor.usd` is an empty `Xform` stub.
+
+   The upstream *mount angle* is deliberately not copied: OpenArm's chest
+   mount pitches 62 deg down to frame a table, which would miss a cabinet
+   handle at chest height. See `docs/camera_check.png`; regenerate with
+   `scripts/snapshot_cameras.py`.
 2. **Robot base-to-cabinet geometry.** A rigid base shift computed from the
    recorded pose drives the torso ~230 mm into the cabinet, because the
    assumed arm yaw and lift don't match the real base-to-cabinet geometry.
@@ -188,8 +209,8 @@ cannot be co-trained.
 * **Isaac's default horizontal aperture is 20.955 mm**, not a 36 mm
   full-frame sensor, so `focal_length=24` is roughly a 47 deg lens, not 74.
   The `visuomotor_env_cfg.py` focal lengths are derived from the real
-  cameras' horizontal FOV against this aperture (~15 mm for the 69.4 deg
-  D435 colour imager, ~6 mm for the ~119 deg Innomaker wrist cam).
+  cameras' horizontal FOV against this aperture (~8.48 mm for the 102 deg
+  ZED Mini chest camera, ~6 mm for the ~119 deg Innomaker wrist cam).
 * **A bbox on a prim with no geometry** returns the empty-range sentinel
   (±3.4e38); arithmetic on it silently teleports whatever you are placing.
   `scripts/build_scene.py` fails loudly on an empty bbox instead.
@@ -207,3 +228,6 @@ cannot be co-trained.
 * `docs/scene_final_00.png`, `docs/scene_final_01.png` — composed cabinet +
   OpenArm scene stills.
 * `docs/compare_real_vs_sim.jpg` — side-by-side of real vs. sim chest frames.
+* `docs/camera_check.png` — chest camera as-was, after the aim fix, and after
+  the ZED Mini FOV match, plus both wrist views. Produced by
+  `scripts/snapshot_cameras.py`.

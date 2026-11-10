@@ -4,10 +4,16 @@ Add the three real OpenArm cameras to a referenced OpenArm USD.
 
 The rig matches the physical robot in the RPL:
 
-  chest   Intel RealSense D435i, colour stream, 848 x 480
+  chest   Stereolabs ZED Mini, left colour stream, 848 x 480
           mounted on openarm_body_link, facing forward and tilted down
   wrists  two Innomaker U20CAM-1080P USB UVC modules, 640 x 480
           mounted on openarm_<side>_link7, aimed at that arm's ee_tcp
+
+The chest camera follows the OpenArm reference robot: openarm_description
+declares the body sensor as ``product: zed`` / ``camera_model: zedm`` on a
+``zed_mount`` accessory (see assets/robot/openarm_v2.0/config/robot_presets/
+default_bimanual.yaml). The upstream openarm_isaac_lab pack carries no camera
+config -- its openarm_bimanual_sensor.usd is an empty Xform stub.
 
 Resolutions are taken from the LeRobot dataset feature spec, so renders
 from these cameras line up with the real observations:
@@ -16,14 +22,16 @@ from these cameras line up with the real observations:
     observation.images.right_wrist_right   480 x 640
 
 Field of view:
-  D435i colour  69.4 x 42.5 deg (Intel tech spec, +/- 3 deg)
+  ZED Mini      102 x 57 x 118 deg (H x V x D max, Stereolabs spec)
   U20CAM-1080P  130 deg wide-angle lens, quoted by Innomaker
 
 Isaac's default horizontal aperture is 20.955 mm, NOT a 36 mm full-frame
-sensor, so focal length is derived from that.  Setting the vertical
-aperture by image aspect then reproduces Intel's stated 42.5 deg vertical
-from the 69.4 deg horizontal, which is a useful check that the convention
-is right.
+sensor, so focal length is derived from that.
+
+The ZED Mini's f/2.0 2.8 mm lens is not rectilinear, so a pinhole cannot
+reproduce 102 x 57 at one aspect ratio (tan(51)/tan(28.5) = 2.27 against a
+1.77 frame).  We match the horizontal figure; the vertical then comes out at
+~70 deg rather than 57.
 
 Usage:
     from openarm_cameras import add_openarm_cameras
@@ -37,9 +45,9 @@ H_APERTURE = 20.955          # Isaac / Kit default, mm
 
 # ---- measured / sourced -------------------------------------------------
 CHEST = dict(
-    name="chest_d435i_color",
+    name="chest_zedm_color",
     width=848, height=480,
-    hfov_deg=69.4,           # Intel D435i tech spec, RGB sensor
+    hfov_deg=102.0,          # Stereolabs ZED Mini spec (102 H x 57 V x 118 D)
     parent="openarm_body_link",
 )
 WRIST = dict(
@@ -165,11 +173,11 @@ def add_openarm_cameras(stage, root="/World/OpenArm", log=print):
 
 if __name__ == "__main__":
     # sanity-check the optics maths without Isaac
-    f = _focal_from_hfov(69.4)
+    f = _focal_from_hfov(CHEST["hfov_deg"])
     va = H_APERTURE * 480 / 848.0
     v = 2 * math.degrees(math.atan((va / 2) / f))
-    print(f"D435i colour: focal {f:.2f} mm -> vfov {v:.1f} deg "
-          f"(Intel says 42.5, so the convention checks out)")
+    print(f"ZED Mini colour: focal {f:.4f} mm -> vfov {v:.1f} deg "
+          f"(Stereolabs say 57; the gap is lens distortion, see module docstring)")
     wh = _diag_to_hfov(130.0, 640, 480)
     fw = _focal_from_hfov(wh)
     vaw = H_APERTURE * 480 / 640.0

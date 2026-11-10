@@ -225,3 +225,7 @@ training/artifacts/train/*
 training/artifacts/logs/*
 !training/artifacts/train/.gitkeep
 !training/artifacts/logs/.gitkeep
+
+evaluation/artifacts/*
+!evaluation/artifacts/.gitkeep
+

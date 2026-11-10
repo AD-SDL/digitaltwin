@@ -12,13 +12,21 @@ under the Kit XR pipeline crashes Kit; the canonical flow records demos with
 the camera-free teleop task and renders images here, headless.
 
 Cameras: ``left_wrist_cam`` / ``right_wrist_cam`` on each OpenArm hand, plus a
-``chest_cam`` on the robot body link that frames the cabinet door. Mount
-offsets are STARTING POINTS fitted by eye against the real wrist/chest footage
-(see the ``cabinet_sim/openarm_cameras.py`` prototype carried into
-``scripts/openarm_cameras.py``). The HANDOFF.md "known gaps" explicitly flags
-these as the biggest open item: ``CHEST_POS_LOCALISH`` / ``CHEST_PITCH_DOWN_DEG``
-need measuring off the physical robot. Tune in sim before publishing a
-synthetic dataset.
+``chest_cam`` on the robot body link that frames the cabinet door.
+
+The chest camera is aimed in sim: it looks along the body link's +X (toward
+the cabinet) with a 10 deg downward pitch, which centres both lever handles in
+the 848x480 frame at the task's robot/cabinet standoff. Verify after any change
+to the robot base pose or the cabinet standoff with::
+
+    cd <isaaclab_root>
+    ./isaaclab.sh -p <task_package_root>/scripts/snapshot_cameras.py --out-dir /tmp/cams
+
+The wrist mount offsets are still STARTING POINTS fitted by eye against the
+real footage (see the ``cabinet_sim/openarm_cameras.py`` prototype carried into
+``scripts/openarm_cameras.py``); they look down the forearm with the gripper in
+frame, but the exact pose has not been measured off the physical robot. Tune in
+sim before publishing a synthetic dataset.
 """
 
 from __future__ import annotations
@@ -72,16 +80,33 @@ class _VisuomotorObservationsCfg(ObservationsCfg):
 #
 # Resolutions match the real LeRobot dataset's feature spec so renders are
 # directly comparable to the real observations (per the HANDOFF notes):
-#   chest_d435i_color    848 x 480  RGB (D435i colour imager)
+#   chest                848 x 480  RGB (16:9, as recorded)
 #   wrist_left_uvc       640 x 480  RGB (Innomaker U20CAM-1080P)
 #   wrist_right_uvc      640 x 480  RGB (Innomaker U20CAM-1080P)
 #
 # Isaac's default horizontal aperture is 20.955 mm (NOT a 36 mm full-frame
 # sensor), so focal_length values here are derived from that aperture and the
 # physical cameras' horizontal FOV:
-#   D435 colour       69.4 deg H  -> focal_length ~= 15.0 mm
+#   ZED Mini         102   deg H  -> focal_length ~=  8.4845 mm  (chest)
 #   U20CAM-1080P     ~119   deg H -> focal_length ~=  6.0 mm (approx; see
 #                                     HANDOFF for the dfov-to-hfov derivation)
+#
+# Chest optics follow the OpenArm reference robot, whose body camera is a
+# **ZED Mini**, not a RealSense: ``openarm_description`` declares the body
+# sensor as ``product: zed`` / ``camera_model: zedm`` on a ``zed_mount``
+# accessory at the chest (``assets/robot/openarm_v2.0/config/robot_presets/
+# default_bimanual.yaml``). Stereolabs quote the ZED Mini at 102 deg H x
+# 57 deg V x 118 deg D. The upstream ``openarm_isaac_lab`` pack has no camera
+# config at all -- its ``openarm_bimanual_sensor.usd`` is still an empty
+# ``Xform`` stub -- so the hardware description is the only source for this.
+#
+# Caveat: the ZED Mini's f/2.0 2.8 mm lens is not rectilinear, so its quoted
+# 102 x 57 cannot be reproduced by a pinhole at one aspect ratio
+# (tan(51)/tan(28.5) = 2.27, but the 848x480 frame is 1.77). We match the
+# headline HORIZONTAL figure; the resulting vertical FOV is 69.9 deg, i.e.
+# the sim sees more above/below than the real camera does. Match the other
+# axis instead by setting focal_length = 11.60 mm (57 deg V, 87.7 deg H) if
+# vertical fidelity ever matters more.
 
 
 def _pinhole(focal_length: float):
@@ -132,22 +157,43 @@ class OpenDoorBimanualIkAbsVisuomotorEnvCfg(OpenDoorBimanualIkAbsEnvCfg):
                 convention="ros",
             ),
         )
-        # Chest camera on the robot body link. The real D435i points slightly
-        # down toward the workspace -- the offset here is approximate (see the
-        # package HANDOFF for how to match the real framing).
+        # Chest camera on the robot body link, framing the cabinet doors and
+        # their lever handles.
+        #
+        # ``openarm_body_link`` is identity-rotated on the stage, so the offset
+        # is effectively in world axes: +X forward (toward the cabinet), +Y
+        # left, +Z up. With pos=(0.08, 0, 0.55) the lens sits at world
+        # (-0.27, 0, 0.03); the two handle bodies sit at world
+        # (0.082, +0.065, -0.03) and (0.082, -0.088, -0.03), i.e. 0.35 m ahead
+        # and 0.06 m below. A 10 deg downward pitch puts the optical axis
+        # within 2 mm of handle height, so both handles land in the middle of
+        # the frame.
+        #
+        # We deliberately do NOT copy the upstream mount angle. OpenArm's
+        # own chest mount (``zed_mount`` -> ``camera_mount_point``) sits at
+        # body-base (0.056, 0.009, 0.809) with a 1.08210 rad = 62 deg
+        # DOWNWARD pitch, which frames a table directly in front of the
+        # robot. This task's target is a vertical cabinet door at chest
+        # height 0.35 m away; at 62 deg the handles fall far above the
+        # frame. Optics are matched to the real camera, aim is matched to
+        # the task.
+        #
+        # NOTE: ``OffsetCfg.rot`` is **(x, y, z, w)** in Isaac Lab 3.0, NOT
+        # (w, x, y, z). The previous value here was authored as a wxyz
+        # "pitch -20 deg" quaternion; read as xyzw it became a 180 deg twist
+        # that aimed the camera up at the ceiling with the image rolled 90 deg.
         self.scene.chest_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/openarm_body_link/chest_cam",
             update_period=0.0,
             height=480,
             width=848,
             data_types=["rgb", "distance_to_image_plane"],
-            spawn=_pinhole(focal_length=15.0),
+            spawn=_pinhole(focal_length=8.4845),  # 102 deg H x 69.9 deg V
             offset=CameraCfg.OffsetCfg(
-                # +X on the body link points forward (OpenArm faces +X); drop
-                # a few cm down from the top of the torso with a slight pitch
-                # down toward the handle (~20 deg).
                 pos=(0.08, 0.0, 0.55),
-                rot=(0.17365, 0.0, 0.98481, 0.0),  # pitch -20 deg (wxyz)
+                # xyzw, ROS convention (+X right, +Y down, +Z forward):
+                # look along body-link +X, pitched 10 deg down, no roll/yaw.
+                rot=(-0.54168, 0.54168, -0.45452, 0.45452),
                 convention="ros",
             ),
         )
