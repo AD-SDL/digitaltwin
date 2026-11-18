@@ -108,6 +108,7 @@ CAMERA_TERMS = {
     "right_wrist_cam": "observation.images.right_wrist",
 }
 QUAT_SLICES = (slice(3, 7), slice(11, 15))  # left / right arm quaternion blocks
+LEVER_THRESHOLDS_DEG = (15, 30, 45, 60)  # handle-turn sub-task: |lever| reached
 
 
 def _to_numpy(x):
@@ -223,6 +224,12 @@ def main() -> int:
 
     cabinet = unwrapped.scene["cabinet"]
     door_idx, _ = cabinet.find_joints(["hinge_left", "hinge_right"])
+    # Lever handles (handle relative to door, revolute about Y; left 0..90 deg,
+    # right -90..0 deg, so |angle| is the throw on either side). The sim has NO
+    # latch -- the door opens without a turn -- so this is a measurement of what
+    # the policy does to the lever, not a gate on opening. Used to score a
+    # "turn the handle" sub-task comparable to real-robot handle-only policies.
+    latch_idx, _ = cabinet.find_joints(["latch_left", "latch_right"])
 
     # -- policy ---------------------------------------------------------
     client = PolicyClient(args_cli.host, args_cli.port, args_cli.task_prompt, args_cli.robot_type)
@@ -276,6 +283,10 @@ def main() -> int:
         max_door = 0.0
         max_door_step = 0
         door_trace: list[float] = []
+        max_lever = [0.0, 0.0]  # |latch_left|, |latch_right| in rad
+        max_lever_step = 0
+        lever_first_step = {th: -1 for th in LEVER_THRESHOLDS_DEG}
+        lever_trace: list[float] = []
         grasped = False
         success = False
         success_step = -1
@@ -328,6 +339,19 @@ def main() -> int:
                 max_door_step = step + 1
             if args_cli.door_trace_every and (step % args_cli.door_trace_every == 0):
                 door_trace.append(round(np.degrees(door_now), 2))
+
+            lever_abs = torch.abs(cabinet.data.joint_pos[0, latch_idx]).tolist()
+            lever_now = max(lever_abs)
+            if lever_now > max(max_lever):
+                max_lever_step = step + 1
+            max_lever = [max(m, a) for m, a in zip(max_lever, lever_abs)]
+            lever_now_deg = float(np.degrees(lever_now))
+            for th in LEVER_THRESHOLDS_DEG:
+                if lever_first_step[th] < 0 and lever_now_deg >= th:
+                    lever_first_step[th] = step + 1
+            if args_cli.door_trace_every and (step % args_cli.door_trace_every == 0):
+                lever_trace.append(round(lever_now_deg, 2))
+
             if "subtask_terms" in obs and "grasp_handle" in obs["subtask_terms"]:
                 grasped = grasped or bool(_to_numpy(obs["subtask_terms"]["grasp_handle"]).any())
 
@@ -363,6 +387,15 @@ def main() -> int:
             "door_angle_trace_deg": door_trace,
             "door_trace_hz": (1.0 / step_dt / args_cli.door_trace_every) if args_cli.door_trace_every else None,
             "grasped_handle": grasped,
+            "max_lever_angle_deg": float(np.degrees(max(max_lever))),
+            "max_lever_angle_deg_left": float(np.degrees(max_lever[0])),
+            "max_lever_angle_deg_right": float(np.degrees(max_lever[1])),
+            "max_lever_angle_step": max_lever_step,
+            # First control step at which either lever reached each |angle|
+            # threshold (-1 = never). Lets the summary score the handle-turn
+            # sub-task at any time cap without re-running.
+            "lever_first_step": {str(th): s for th, s in lever_first_step.items()},
+            "lever_angle_trace_deg": lever_trace,
             "latency": {
                 "rtt_ms": _stats(rtts),
                 "rtt_replan_ms": _stats(replan_rtt),
@@ -386,6 +419,7 @@ def main() -> int:
         print(f"[eval] ep {ep + 1}/{args_cli.num_episodes} "
               f"{'SUCCESS' if success else 'fail   '} "
               f"steps={steps_taken:4d} door={np.degrees(max_door):5.1f}deg "
+              f"lever={np.degrees(max(max_lever)):5.1f}deg "
               f"grasp={'y' if grasped else 'n'} "
               f"wall={wall_s:5.1f}s rtt_p50={record['latency']['rtt_ms']['p50']:.1f}ms "
               f"| running SR {n_success}/{ep + 1} = {100 * n_success / (ep + 1):.1f}%", flush=True)

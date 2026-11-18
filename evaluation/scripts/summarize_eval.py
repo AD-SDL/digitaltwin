@@ -104,6 +104,52 @@ def _horizon_curve(episodes, manifest):
     return out
 
 
+HANDLE_TIME_CAPS_S = (10, 20, 30, 40, 60)
+
+
+def _handle_turn_summary(episodes, manifest):
+    """Handle-turn sub-task: did either lever reach |angle| >= threshold by time T?
+
+    Exact at every cap for the same reason as the horizon curve: the first
+    step each threshold was crossed is recorded. Returns None for runs that
+    predate lever logging. The sim has no latch, so a turn is never required
+    to open the door -- read this as "what the policy did to the lever".
+    """
+    eps = [e for e in episodes if "lever_first_step" in e]
+    if not eps:
+        return None
+    n = len(eps)
+    hz = manifest["control_hz"]
+    horizon_s = manifest["episode_length_s"]
+    caps = [c for c in HANDLE_TIME_CAPS_S if c < horizon_s] + [horizon_s]
+    thresholds = sorted(int(k) for k in eps[0]["lever_first_step"])
+
+    grid = []
+    for th in thresholds:
+        steps = [e["lever_first_step"][str(th)] for e in eps]
+        hit = sorted(s / hz for s in steps if s > 0)
+        row = {"threshold_deg": th, "by_cap": []}
+        for cap in caps:
+            k = sum(1 for s in steps if 0 < s <= round(cap * hz))
+            lo, hi = wilson(k, n)
+            row["by_cap"].append({"cap_s": cap, "count": k, "rate": k / n, "wilson95": [lo, hi]})
+        row["time_to_turn_s_p50"] = _pct(hit, 0.5) if hit else None
+        row["time_to_turn_s_p90"] = _pct(hit, 0.9) if hit else None
+        row["turned_and_door_success"] = sum(1 for e, s in zip(eps, steps) if s > 0 and e["success"])
+        row["door_success_without_turn"] = sum(1 for e, s in zip(eps, steps) if s <= 0 and e["success"])
+        grid.append(row)
+
+    lever = sorted(e["max_lever_angle_deg"] for e in eps)
+    return {
+        "episodes": n,
+        "max_lever_angle_deg_p50": _pct(lever, 0.5),
+        "max_lever_angle_deg_p90": _pct(lever, 0.9),
+        "max_lever_angle_deg_best": lever[-1],
+        "left_dominant": sum(1 for e in eps if e["max_lever_angle_deg_left"] > e["max_lever_angle_deg_right"]),
+        "thresholds": grid,
+    }
+
+
 def _stall_summary(episodes):
     """How long failures sat without improving the door angle before time ran out."""
     fails = [e for e in episodes if not e["success"] and e.get("stalled_fraction") is not None]
@@ -202,6 +248,7 @@ def main() -> int:
         },
         "horizon_sensitivity": _horizon_curve(episodes, manifest),
         "stall": _stall_summary(episodes),
+        "handle_turn": _handle_turn_summary(episodes, manifest),
         "time": {
             "total_wall_min": manifest.get("total_wall_s", 0) / 60,
             "wall_s_per_episode_mean": sum(e["wall_s"] for e in episodes) / n,
@@ -263,6 +310,22 @@ def main() -> int:
         w(f"  still improving in the final 10% of the episode: "
           f"{st['still_improving_last_10pct']}/{st['failures']}"
           "   <- only these could plausibly be rescued by a longer horizon")
+
+    ht = r.get("handle_turn")
+    if ht:
+        caps = [c["cap_s"] for c in ht["thresholds"][0]["by_cap"]]
+        w("\nHANDLE TURN (either lever |angle| >= threshold by time cap; sim has no latch)")
+        w(f"  max lever angle     p50 {ht['max_lever_angle_deg_p50']:5.1f} deg   "
+          f"p90 {ht['max_lever_angle_deg_p90']:5.1f} deg   best {ht['max_lever_angle_deg_best']:5.1f} deg   "
+          f"(left lever larger in {ht['left_dominant']}/{ht['episodes']})")
+        w("  threshold  " + "".join(f"{f'<={c:.0f}s':>9}" for c in caps)
+          + "   t_turn p50/p90   turned+opened / opened w/o turn")
+        for row in ht["thresholds"]:
+            cells = "".join(f"{c['count']:>4d}/{ht['episodes']:<4d}" for c in row["by_cap"])
+            tt = (f"{row['time_to_turn_s_p50']:5.1f}/{row['time_to_turn_s_p90']:5.1f}s"
+                  if row["time_to_turn_s_p50"] is not None else "      --     ")
+            w(f"  >= {row['threshold_deg']:2d} deg  {cells}   {tt}     "
+              f"{row['turned_and_door_success']:2d} / {row['door_success_without_turn']:2d}")
 
     t = r["time"]
     w("\nTIME")
